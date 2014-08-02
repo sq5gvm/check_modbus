@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <string.h>
 #include "modbus/modbus.h"
 #include <errno.h>
 #include "compile_date_time.h"
@@ -28,6 +29,9 @@ void print_help(void)
     printf("-h  --help          Print this help\n" );
     printf("-H  --ip=           IP address or hostname\n"); 
     printf("-p  --port=         [ TCP Port number. Default 502 ]\n");  
+#if HAVE_MODBUS_NEW_RTUTCP
+    printf("-T  --rtu_over_tcp  [ Enable RTU over TCP. Disabled by default. ]\n");  
+#endif
 
 #if LIBMODBUS_VERSION_MAJOR >= 3
     printf("-S  --serial=       Serial port to use\n");
@@ -92,6 +96,9 @@ void print_settings(modbus_params_t* params)
     {
         printf("ip:          %s\n",          params->host        );
         printf("port:        %s\n",          params->mport       );
+#if HAVE_MODBUS_NEW_RTUTCP
+	printf("rtu_over_tcp:%d\n",          params->rtu_over_tcp);
+#endif
     }
 #if LIBMODBUS_VERSION_MAJOR >= 3
     else if (params->serial != NULL) 
@@ -140,6 +147,9 @@ void    load_defaults(modbus_params_t* params)
         static char  mport_default[] = "502";
 
         params->mport       = mport_default;
+#if HAVE_MODBUS_NEW_RTUTCP
+	params->rtu_over_tcp= 0;
+#endif
 
 #if LIBMODBUS_VERSION_MAJOR >= 3
         static char  serial_parity_default = SERIAL_PARITY_DEFAULT;
@@ -205,15 +215,22 @@ int     parse_command_line(modbus_params_t* params, int argc, char **argv)
     int rs;
     int option_index;
 
+    char short_options[100];
+    strcpy(short_options, "hH:p:d:a:f:w:c:nNt:F:isvPm:M:L:");
 #if LIBMODBUS_VERSION_MAJOR >= 3
-    const char* short_options = "hH:p:S:b:d:a:f:w:c:nNt:F:isvPm:M:L:";
-#else
-    const char* short_options = "hH:p:d:a:f:w:c:nNt:F:isvPm:M:L:";
+    strcat(short_options, "S:b:d:"); // serial port options available only in libmodbus 3.x +
 #endif
+#if HAVE_MODBUS_NEW_RTUTCP
+    strcat(short_options, "T"); // rtu over tcp available only in patched libmodbus libraries - detected by configure script
+#endif
+    
     const struct option long_options[] = {
         {"help"         ,no_argument            ,NULL,  'h'   },
         {"ip"           ,required_argument      ,NULL,  'H'   },
         {"port"         ,required_argument      ,NULL,  'p'   },
+#if HAVE_MODBUS_NEW_RTUTCP
+	{"rtu_over_tcp" ,no_argument            ,NULL,  'T'   },
+#endif
 #if LIBMODBUS_VERSION_MAJOR >= 3
         {"serial"       ,required_argument      ,NULL,  'S'   },
         {"serial_mode"  ,required_argument      ,NULL,  OPT_SERIAL_MODE   },
@@ -271,6 +288,11 @@ int     parse_command_line(modbus_params_t* params, int argc, char **argv)
             case 'p':
                 params->mport = optarg;
                 break;
+#if HAVE_MODBUS_NEW_RTUTCP
+            case 'T':
+                params->rtu_over_tcp = 1; 
+                break;
+#endif
 
 #if LIBMODBUS_VERSION_MAJOR >= 3
             // MODBUS RTU
@@ -452,6 +474,7 @@ int     read_data(modbus_t* mb, modbus_params_t* params, data_t*    data)
             rc = RESULT_UNSUPPORTED_FUNCTION;
             break;
     }
+    
     reorder_data_t( data, params->swap_bytes, params->inverse_words );
     return rc;
 }
@@ -564,7 +587,15 @@ int     process(modbus_params_t* params )
 
         if (params->host != NULL) 
         {
-            mb = modbus_new_tcp_pi(params->host, params->mport);
+#if HAVE_MODBUS_NEW_RTUTCP
+            if (!params->rtu_over_tcp) {
+#endif
+                mb = modbus_new_tcp_pi(params->host, params->mport);
+#if HAVE_MODBUS_NEW_RTUTCP
+            } else {
+                mb = modbus_new_rtutcp(params->host, atoi(params->mport));
+            }
+#endif
         }
 #if LIBMODBUS_VERSION_MAJOR >= 3
         else if (params->serial != NULL) 
@@ -622,6 +653,9 @@ int     process(modbus_params_t* params )
             /* start new try */
             rc = RESULT_OK;
 
+	    /* flush old data from buffer */
+	    modbus_flush(mb);
+	    
             if (modbus_connect(mb) == -1) 
             {
                 usleep( retry_timeout_us );

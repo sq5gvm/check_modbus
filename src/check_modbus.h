@@ -48,6 +48,10 @@ typedef struct
     int     serial_stop_bits;			// serial port stop bit
 #endif
 
+#if HAVE_MODBUS_NEW_RTUTCP
+    char    rtu_over_tcp;                       // RTU over TCP mode
+#endif
+
     int     nc;			                // Null flag
     int     nnc;		                // No null flag
     int     tries;		                // tries 
