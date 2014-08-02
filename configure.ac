@@ -46,6 +46,7 @@ AC_TYPE_UINT8_T
 
 dnl Checks for library functions.
 AC_CHECK_FUNCS([modbus_new_tcp_pi],,AC_MSG_ERROR([echo Function modbus_new_tcp_pi is not found]))
+AC_CHECK_FUNCS([modbus_new_rtutcp],,AC_MSG_NOTICE([libmodbus library does not provide modbus_new_rtutcp function - disabling RTU over TCP support]))
 
 dnl CC_CHECK_WERROR
 CC_CHECK_CFLAGS_APPEND([-Wall -Wextra -Wpedantic -Wc++-compat -Wmissing-declarations -Wmissing-prototypes -Wformat-security])

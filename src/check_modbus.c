@@ -232,10 +232,18 @@ static int init_connection(struct modbus_params_t *params, modbus_t **mb, FILE *
 
 	set_lock(params, LOCK_INPUT);
 	/*******************************************************************/
-	/*                       Modbus-TCP                                */
+	/*              Modbus-TCP and Modbus-RTU-over-TCP                 */
 	/*******************************************************************/
 	if (params->host != NULL) {
-		*mb = modbus_new_tcp_pi(params->host, params->mport);
+#if HAVE_MODBUS_NEW_RTUTCP
+		if (params->rtu_over_tcp) { // enabled RTU over TCP mode
+			*mb = modbus_new_rtutcp(params->host, params->mport);
+		} else {
+#endif
+			*mb = modbus_new_tcp_pi(params->host, params->mport);
+#if HAVE_MODBUS_NEW_RTUTCP
+		}
+#endif
 		if (*mb == NULL) {
 			fprintf(stderr, "Unable to allocate libmodbus context\n");
 			return RESULT_ERROR;

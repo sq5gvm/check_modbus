@@ -59,6 +59,10 @@ struct modbus_params_t {
 	double  crit_range;                 /* Critical range */
 	char    *host;                      /* IP address or host name */
 
+#if HAVE_MODBUS_NEW_RTUTCP
+	char    rtu_over_tcp;                       // RTU over TCP mode
+#endif
+
 #if LIBMODBUS_VERSION_MAJOR >= 3
 	char    *serial;                    /* serial port name */
 	int     serial_mode;                /* serial port mode (RS232/RS485) */
