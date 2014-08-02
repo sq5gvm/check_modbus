@@ -1,3 +1,8 @@
+Patch adds support for non-standard RTU-over-TCP modbus transport.
+More info: https://github.com/stephane/libmodbus/issues/192
+Source: https://groups.google.com/forum/#!msg/libmodbus/xm8S6MMDhgM/Qd97y9_mhwgJ
+Updated for version 3.0.6 of libmodbus.
+
 --- libmodbus-3.0.6-orig/src/modbus-rtu-private.h	2014-04-02 23:34:00.000000000 +0200
 +++ libmodbus-3.0.6/src/modbus-rtu-private.h	2014-07-27 13:59:15.887186482 +0200
 @@ -31,11 +31,9 @@
