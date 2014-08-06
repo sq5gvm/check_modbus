@@ -55,7 +55,7 @@ static int     read_data(modbus_t *mb, FILE *f, struct modbus_params_t *params, 
 	/* no source is specified */
 	if ((!mb) && (!f))
 		return RESULT_ERROR;
-		
+
 	if (mb != NULL)	{
 		switch (params->nf) {
 		case MBF001_READ_COIL_STATUS:
@@ -147,65 +147,70 @@ static void print_performance_data(struct modbus_params_t *params, struct data_t
 	if (params->perf_data) {
 		printf("\t\t|'%s'=", params->perf_label);
 		printf_data_t(stdout, data);
-		printf(";%f;%f;", params->warn_range, params->crit_range);
 
+		printf(";");
+		if (params->warn_range.defined)
+			printf("%s", params->warn_range.src);
+
+		printf(";");
+		if (params->crit_range.defined)
+			printf("%s", params->crit_range.src);
+
+		printf(";");
 		if (params->perf_min_en)
 			printf("%f", params->perf_min);
 
 		printf(";");
-
 		if (params->perf_max_en)
 			printf("%f", params->perf_max);
 	}
 }
 
+static void adjust_result(struct modbus_params_t *params, struct data_t *data)
+{
+	double value;
+
+	if ((params->gain == 1.0) && (params->offset == 0.0))
+		return;
+
+	/* if adjust parameters are used change data type to double */
+	value = value_data_t(data);
+	value = params->gain*value + params->offset;
+	init_data_t(data, FORMAT_DOUBLE, 0);
+	data->val.long_real = value;
+}
+
+
+
+static const char * const status_text[] = {
+	[RESULT_OK] = "OK",
+	[RESULT_WARNING] = "WARNING",
+	[RESULT_CRITICAL] = "CRITICAL",
+	[RESULT_UNKNOWN] = "UNKNOWN",
+};
+
+
 static int print_result(struct modbus_params_t *params, struct data_t *data)
 {
 	int rc = RESULT_UNKNOWN;
-	double   result, warn_range, crit_range;
+	double   result;
 
+	adjust_result(params, data);
+	result      = value_data_t(data);
 
 	if (params->verbose)
-		printf("print_result\n");
-
-	result      = value_data_t(data);
-	warn_range  = params->warn_range;
-	crit_range  = params->crit_range;
+		printf("print_result: %f\n", result);
 
 	if (params->nc != params->nnc) {
 		if (params->nc  == 1)
 			rc = (result == 0) ? RESULT_CRITICAL : RESULT_OK;
 		if (params->nnc == 1)
 			rc = (result != 0) ? RESULT_CRITICAL : RESULT_OK;
-	} else {
-		if (warn_range <= crit_range) {
-			if (result >= crit_range)
-				rc = RESULT_CRITICAL;
-			else
-				rc = (result >= warn_range) ? RESULT_WARNING : RESULT_OK;
-		} else {
-			if (result <= crit_range)
-				rc = RESULT_CRITICAL;
-			else
-				rc = (result <= warn_range) ?  RESULT_WARNING : RESULT_OK;
-		}
-	}
+	} else
+		rc = check_ranges(&params->warn_range, &params->crit_range, result);
 
 
-	switch (rc) {
-	case RESULT_OK:
-		printf("Ok: ");
-		break;
-	case RESULT_WARNING:
-		printf("Warning: ");
-		break;
-	case RESULT_CRITICAL:
-		printf("Critical: ");
-		break;
-	case RESULT_UNKNOWN:
-		printf("Unknown result");
-		break;
-	}
+	printf("%s: ", status_text[rc]);
 
 	if (params->verbose)
 		printf("print_result rc: %d\n", rc);
@@ -381,6 +386,8 @@ static int     save_dump_file(struct modbus_params_t *params, struct data_t *dat
 	release_lock(params, LOCK_OUTPUT);
 	return rc;
 }
+
+
 
 
 static int process(struct modbus_params_t *params)

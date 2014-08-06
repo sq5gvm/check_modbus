@@ -162,8 +162,13 @@ void print_settings(FILE *fd, struct modbus_params_t *params)
 	fprintf(fd, "format:      %d\n",          params->format);
 	fprintf(fd, "swap bytes:  %d\n",          params->swap_bytes);
 	fprintf(fd, "\n");
-	fprintf(fd, "warning:     %f\n",          params->warn_range);
-	fprintf(fd, "critical:    %f\n",          params->crit_range);
+
+	fprintf(fd, "warning range:\n");
+	fprint_range(fd, &params->warn_range);
+
+	fprintf(fd, "critical range:\n");	
+	fprint_range(fd, &params->crit_range);	
+
 	fprintf(fd, "null:        %d\n",          params->nc);
 	fprintf(fd, "not null:    %d\n",          params->nnc);
 	fprintf(fd, "\n");
@@ -181,8 +186,11 @@ void print_settings(FILE *fd, struct modbus_params_t *params)
 	fprintf(fd, "dump_size:   %d\n",          params->dump_size);
 	fprintf(fd, "dump_file :  %s\n",          params->dump_file ? params->dump_file : "stdout");
 	fprintf(fd, "\n");
-	fprintf(fd, "lock_file_in :%s\n",          params->lock_file_in ? params->lock_file_in : "NULL");
-	fprintf(fd, "lock_file_out:%s\n",          params->lock_file_out ? params->lock_file_out : "NULL");
+	fprintf(fd, "lock_file_in :%s\n",         params->lock_file_in ? params->lock_file_in : "NULL");
+	fprintf(fd, "lock_file_out:%s\n",         params->lock_file_out ? params->lock_file_out : "NULL");
+	fprintf(fd, "\n");
+	fprintf(fd, "gain:         %f\n",         params->gain);
+	fprintf(fd, "offset:       %f\n",         params->offset);
 	fprintf(fd, "---------------------------------------------\n");
 }
 
@@ -219,8 +227,14 @@ static void    load_defaults(struct modbus_params_t *params)
 	params->inverse_words  = 0;
 	params->swap_bytes  = 0;
 
-	params->warn_range  = 0;
-	params->crit_range  = 0;
+	params->warn_range.defined = 0;
+	params->warn_range.lo = 0;
+	params->warn_range.hi = 0;
+	
+	params->crit_range.defined = 0;
+	params->crit_range.lo = 0;
+	params->crit_range.hi = 0;
+	
 	params->verbose     = 0;
 
 	params->perf_min_en = 0;
@@ -240,6 +254,9 @@ static void    load_defaults(struct modbus_params_t *params)
 
 	params->lock_file_out = NULL;
 	params->lock_file_out_fd = 0;
+
+	params->gain = 1.0;
+	params->offset = 0.0;
 }
 
 
@@ -331,7 +348,7 @@ static int     check_serial_parity(char parity)
 static int      check_command_line(struct modbus_params_t *params, int argc, char **argv)
 {
 	(void)argc;
-	
+
 #if LIBMODBUS_VERSION_MAJOR >= 3
 	if (params->host == NULL && params->serial == NULL && params->file == NULL) {
 		fprintf(stderr,
@@ -407,6 +424,7 @@ static int      check_command_line(struct modbus_params_t *params, int argc, cha
 int     parse_command_line(struct modbus_params_t *params, int argc, char **argv)
 {
 	int rs;
+	int rc = RESULT_OK;
 	int option_index;
 
 	/* no short option char wasted for rarely used options */
@@ -426,8 +444,10 @@ int     parse_command_line(struct modbus_params_t *params, int argc, char **argv
 		OPT_DUMP_SIZE,
 
 		OPT_LOCK_FILE_IN,
-		OPT_LOCK_FILE_OUT
+		OPT_LOCK_FILE_OUT,
 
+		OPT_GAIN,
+		OPT_OFFSET
 	};
 
 	char short_options[100];
@@ -477,6 +497,8 @@ int     parse_command_line(struct modbus_params_t *params, int argc, char **argv
 		{"dump_file",     required_argument,      NULL,   OPT_DUMP_FILE   },
 		{"lock_file_in",  required_argument,      NULL,   OPT_LOCK_FILE_IN   },
 		{"lock_file_out", required_argument,      NULL,   OPT_LOCK_FILE_OUT  },
+		{"gain",          required_argument,      NULL,   OPT_GAIN },
+		{"offset",        required_argument,      NULL,   OPT_OFFSET },
 		{NULL,            0,                      NULL,   0    },
 	};
 
@@ -552,10 +574,16 @@ int     parse_command_line(struct modbus_params_t *params, int argc, char **argv
 			params->format = atoi(optarg);
 			break;
 		case 'w':
-			params->warn_range = atof(optarg);
+			if (parse_range(optarg, &params->warn_range) != 0) {
+				fprintf(stderr, "can't parse warning range %s\n", optarg);
+				rc = RESULT_WRONG_ARG;
+			}
 			break;
 		case 'c':
-			params->crit_range = atof(optarg);
+			if (parse_range(optarg, &params->crit_range) != 0) {
+				fprintf(stderr, "can't parse critical range %s\n", optarg);
+				rc = RESULT_WRONG_ARG;
+			}
 			break;
 		case 'n':
 			params->nc = 1;
@@ -616,11 +644,20 @@ int     parse_command_line(struct modbus_params_t *params, int argc, char **argv
 			params->lock_file_out = optarg;
 			break;
 
+		case OPT_GAIN:
+			params->gain = atof(optarg);
+			break;
+		case OPT_OFFSET:
+			params->offset = atof(optarg);
+			break;			
 		case '?':
 		default:
-			print_help();
-			return RESULT_PRINT_HELP;
+			rc = RESULT_PRINT_HELP;
 		};
+
+		if (rc!=RESULT_OK) {
+			return rc;
+		}
 	};  /* while(1) */
 
 	return check_command_line(params, argc, argv);

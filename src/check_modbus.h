@@ -28,6 +28,7 @@
 #ifndef _CHECK_MODBUS_H_
 #define _CHECK_MODBUS_H_
 
+#include "ranges.h"
 #include "variant.h"
 #include "modbus/modbus.h"
 
@@ -55,8 +56,8 @@ struct modbus_params_t {
 	int     devnum;                     /* Device modbus address */
 	int     sad;                        /* Register/bit address */
 	int     nf;                         /* Number of function */
-	double  warn_range;                 /* Warning range */
-	double  crit_range;                 /* Critical range */
+	struct range  warn_range;           /* Warning range */
+	struct range  crit_range;           /* Critical range */
 	char    *host;                      /* IP address or host name */
 
 #if HAVE_MODBUS_NEW_RTUTCP
@@ -100,6 +101,10 @@ struct modbus_params_t {
 
 	char    *lock_file_out;             /* name of lock file for */
 	int     lock_file_out_fd;
+
+	double  gain;                       /* value =* gain*value+offset */
+	double  offset;
+
 
 };
 
