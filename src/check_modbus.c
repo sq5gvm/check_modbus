@@ -431,5 +431,10 @@ int main(int argc, char **argv)
 
 	srand(time(NULL));
 	rc = parse_command_line(&params, argc, argv);
-	return  (rc != RESULT_OK) ? rc : process(&params);
+	if (rc == RESULT_OK) {
+		rc = process(&params);
+	}
+	// vide https://nagios-plugins.org/doc/guidelines.html#AEN78
+	// "Developers should include a default catch-all for system command output that returns an UNKNOWN return code."
+	return (rc <= RESULT_ERROR) ? rc : RESULT_ERROR;
 }
